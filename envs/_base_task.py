@@ -1,6 +1,5 @@
 import os
 import re
-import shutil
 import sapien.core as sapien
 from sapien.render import clear_cache as sapien_clear_cache
 from sapien.utils.viewer import Viewer
@@ -559,22 +558,16 @@ class Base_Task(gym.Env):
             traj_data = pickle.load(f)
         return traj_data
 
-    def merge_pkl_to_hdf5_video(self, instructions=None):
+    def merge_pkl_to_hdf5_video(self):
         if not self.save_data:
             return
         cache_path = self.folder_path["cache"]
-        episode_name = f"episode_{self.ep_num:07d}"
-        target_file_path = f"{self.save_dir}/data/{episode_name}.hdf5"
-        target_video_path = f"{self.save_dir}/video/{episode_name}.mp4"
+        target_file_path = f"{self.save_dir}/data/episode{self.ep_num}.hdf5"
+        target_video_path = f"{self.save_dir}/video/episode{self.ep_num}.mp4"
+        # print('Merging pkl to hdf5: ', cache_path, ' -> ', target_file_path)
 
         os.makedirs(f"{self.save_dir}/data", exist_ok=True)
-        process_folder_to_hdf5_video(
-            cache_path,
-            target_file_path,
-            target_video_path,
-            instructions=instructions,
-            frequency=int(self.save_freq or 15),
-        )
+        process_folder_to_hdf5_video(cache_path, target_file_path, target_video_path)
 
     def remove_data_cache(self):
         folder_path = self.folder_path["cache"]
@@ -1535,8 +1528,11 @@ class Base_Task(gym.Env):
 
         eval_video_freq = 1  # fixed
         if (self.eval_video_path is not None and self.take_action_cnt % eval_video_freq == 0):
-            # self.eval_video_ffmpeg.stdin.write(self.now_obs["observation"]["head_camera"]["rgb"].tobytes())
-            self.eval_video_ffmpeg.stdin.write(self.now_obs["third_view_rgb"].tobytes())
+            # Record the head camera: for tasks like observe_and_pickup a wall
+            # rises and occludes the third-view camera, so third_view_rgb yields
+            # a near-useless video. head_camera matches video_size (both derived
+            # from head_camera_type) and stays unobstructed.
+            self.eval_video_ffmpeg.stdin.write(self.now_obs["observation"]["head_camera"]["rgb"].tobytes())
 
         self.take_action_cnt += 1
         print(f"step: \033[92m{self.take_action_cnt} / {self.step_lim}\033[0m", end="\r")
@@ -1723,7 +1719,7 @@ class Base_Task(gym.Env):
                 self.eval_success = True
                 self.get_obs() # update obs
                 if (self.eval_video_path is not None):
-                    self.eval_video_ffmpeg.stdin.write(self.now_obs["third_view_rgb"].tobytes())
+                    self.eval_video_ffmpeg.stdin.write(self.now_obs["observation"]["head_camera"]["rgb"].tobytes())
                 return
 
         self._update_render()

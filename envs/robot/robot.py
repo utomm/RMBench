@@ -696,6 +696,15 @@ class Robot:
 
 def planner_process_worker(conn, args):
     import os
+
+    # Each rank spawns two planner workers (left+right arm). curobo JIT-compiles
+    # its warp kernels on first use; the precompiled-header (PCH) cache is a single
+    # shared file per module, so concurrent workers corrupt each other's PCH
+    # ("error while writing PCH file"). Disable PCH (compile-speed cache only) so
+    # every worker compiles independently.
+    import warp
+    warp.config.use_precompiled_headers = False
+
     from .planner import CuroboPlanner  # 或者绝对路径导入
 
     planner = CuroboPlanner(args["origin_pose"], args["joints_name"], args["all_joints"], yml_path=args["yml_path"])
